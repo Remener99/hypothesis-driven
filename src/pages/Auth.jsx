@@ -4,6 +4,7 @@ import { ArrowRight, CheckCircle2, FlaskConical, LineChart, Target } from 'lucid
 import { useAuth } from '../lib/auth';
 import { Button, Field } from '../components/ui';
 import { Logo } from '../components/Layout';
+import { IS_STATIC } from '../lib/api';
 
 export default function AuthPage({ mode }) {
   const isLogin = mode === 'login';
@@ -46,6 +47,7 @@ export default function AuthPage({ mode }) {
             {err && <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 animate-fade-in">{err}</div>}
             <Button type="submit" size="lg" className="w-full" loading={loading}>{isLogin ? 'Войти' : 'Зарегистрироваться'} <ArrowRight className="h-4 w-4" /></Button>
           </form>
+          {IS_STATIC && <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">Демо-версия на GitHub Pages: аккаунты и данные хранятся только в вашем браузере.</p>}
           {isLogin && <p className="mt-4 rounded-lg bg-brand-50 px-3 py-2 text-xs text-brand-800">Демо-доступ уже подставлен: <b>demo@hypolab.ru</b> / <b>demo1234</b></p>}
           <p className="mt-6 text-center text-sm text-slate-500">
             {isLogin ? 'Нет аккаунта? ' : 'Уже есть аккаунт? '}

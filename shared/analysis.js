@@ -1,5 +1,5 @@
 // Before / during / after experiment analysis over a normalised daily dataset.
-import { METRICS, METRIC_MAP } from './metrics.js';
+import { METRICS, METRIC_MAP } from './metricsIndex.js';
 
 const DAY = 864e5;
 export const addDays = (iso, n) => new Date(new Date(iso + 'T00:00:00Z').getTime() + n * DAY).toISOString().slice(0, 10);

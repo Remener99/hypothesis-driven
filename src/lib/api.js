@@ -6,7 +6,18 @@ export const tokenStore = {
   set: t => { try { t ? localStorage.setItem(KEY, t) : localStorage.removeItem(KEY); } catch {} },
 };
 
+export const IS_STATIC = !!import.meta.env.VITE_STATIC;
+
 export async function api(path, { method = 'GET', body, form } = {}) {
+  if (IS_STATIC) {
+    // GitHub Pages build: the whole backend runs in the browser (IndexedDB)
+    const { localApi } = await import('../local/backend.js');
+    try { return await localApi(path, { method, body, form }); }
+    catch (e) {
+      if (e.status === 401 && !path.startsWith('/auth')) window.dispatchEvent(new Event('hl:unauthorized'));
+      throw new ApiError(e.message || 'Ошибка', e.status || 500);
+    }
+  }
   const opts = { method, credentials: 'include', headers: {} };
   const t = tokenStore.get();
   if (t) opts.headers.Authorization = 'Bearer ' + t;

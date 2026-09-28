@@ -19,8 +19,8 @@
 //     Ratio metrics stored as fractions (12,5% → 0.125).
 //  6. The best sheet wins; rows are aggregated per (date, sku).
 // ─────────────────────────────────────────────────────────────────────────────
-import XLSX from 'xlsx';
-import { METRICS, METRIC_MAP } from './metrics.js';
+import XLSX from './xlsx.js';
+import { METRICS, METRIC_MAP } from './metricsIndex.js';
 
 const MONTHS = {
   'янв': 1, 'фев': 2, 'мар': 3, 'апр': 4, 'мая': 5, 'май': 5, 'июн': 6, 'июл': 7, 'авг': 8,
@@ -214,7 +214,7 @@ function toNumber(metricKey, v) {
 
 /** Inspect workbook → best layout per sheet */
 export function inspectWorkbook(buffer) {
-  const wb = XLSX.read(buffer, { type: 'buffer', cellDates: true });
+  const wb = XLSX.read(buffer, { type: 'array', cellDates: true });
   const sheets = [];
   for (const name of wb.SheetNames) {
     const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: '' });

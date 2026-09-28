@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { api } from '../lib/api';
 import { MARKETPLACES, METRICS, METRIC_MAP, fmtDate, fmtNum } from '../lib/constants';
 import { Button, Field, Modal, Select, Spinner, cn } from './ui';
+import SampleLink from './SampleLink';
 
 export default function UploadWizard({ open, onClose }) {
   const [stage, setStage] = useState('drop'); // drop | parsing | review | saving
@@ -95,7 +96,7 @@ export default function UploadWizard({ open, onClose }) {
             {[[Wand2, 'Автораспознавание', '«Заказали, шт», «Переходы в карточку», «ДРР»… — 150+ вариантов названий'], [CalendarDays, 'Любые даты', '01.09.2026, 2026-09-01, «1 сентября», серийные даты Excel, диапазоны'], [Layers, 'Любая структура', 'Дни в строках или в столбцах, шапка с отступом, несколько листов']].map(([I, t, d]) => (
               <div key={t} className="rounded-xl bg-slate-50 p-3"><I className="h-4 w-4 text-brand-600" /><div className="mt-1.5 font-medium text-slate-800">{t}</div><div className="mt-0.5">{d}</div></div>))}
           </div>
-          <div className="mt-4 text-xs text-slate-500">Нет файла под рукой? Скачайте пример: <a className="text-brand-600 hover:underline" href="/api/samples/wb_voronka_po_dnyam.xlsx">WB воронка</a> · <a className="text-brand-600 hover:underline" href="/api/samples/ozon_analitika_wide.xlsx">Ozon (даты в столбцах)</a> · <a className="text-brand-600 hover:underline" href="/api/samples/shablon_hypolab.xlsx">шаблон</a></div>
+          <div className="mt-4 text-xs text-slate-500">Нет файла под рукой? Скачайте пример: <SampleLink className="text-brand-600 hover:underline" file="wb_voronka_po_dnyam.xlsx">WB воронка</SampleLink> · <SampleLink className="text-brand-600 hover:underline" file="ozon_analitika_wide.xlsx">Ozon (даты в столбцах)</SampleLink> · <SampleLink className="text-brand-600 hover:underline" file="shablon_hypolab.xlsx">шаблон</SampleLink></div>
         </div>
       )}
 

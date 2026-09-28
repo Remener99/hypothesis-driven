@@ -6,7 +6,9 @@
     "dev": "node server/index.js & vite",
     "server": "node server/index.js",
     "build": "vite build",
-    "start": "./start.sh"
+    "start": "./start.sh",
+    "build:pages": "VITE_STATIC=1 vite build",
+    "preview:pages": "VITE_STATIC=1 vite build && vite preview --outDir site"
   },
   "keywords": [],
   "author": "",

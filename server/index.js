@@ -8,10 +8,10 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { db } from './db.js';
-import { inspectWorkbook, extract, previewPayload, parseDate } from './excel.js';
-import { analyse, baseline, dailySeries } from './analysis.js';
+import { inspectWorkbook } from '../shared/excel.js';
+import { analyse, baseline, dailySeries } from '../shared/analysis.js';
+import { STATUSES, STATUS_RU, J, cleanHypothesis, hypothesisOut, datasetOut, buildPreview, prepareCommit, computeStats } from '../shared/core.js';
 import { ensureDemo, saveDataset, seedUserData, SAMPLES_DIR } from './seed.js';
-import { METRIC_MAP } from './metrics.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const secretFile = path.join(__dirname, '..', 'data', '.secret');
@@ -30,7 +30,6 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 
 if (process.env.SLOW) app.use('/api', (req, res, next) => setTimeout(next, +process.env.SLOW));
 
 const wrap = fn => (req, res, next) => { try { const r = fn(req, res, next); if (r?.catch) r.catch(next); } catch (e) { next(e); } };
-const J = (s, d) => { try { return s ? JSON.parse(s) : d; } catch { return d; } };
 
 // ── auth ────────────────────────────────────────────────────────────────────
 // Cookie works both on plain http (localhost) and inside cross-site iframes behind an https proxy
@@ -95,23 +94,8 @@ app.post('/api/demo/reset', auth, wrap((req, res) => {
 }));
 
 // ── hypotheses ──────────────────────────────────────────────────────────────
-const H_FIELDS = ['title', 'marketplace', 'product', 'sku', 'stage', 'problem', 'action', 'expected', 'rationale', 'metric', 'baseline', 'target', 'target_pct', 'start_date', 'end_date', 'before_days', 'after_days', 'impact', 'confidence', 'ease', 'status', 'result', 'insights', 'next_steps', 'tags', 'budget', 'owner', 'dataset_id', 'dataset_sku'];
-const STATUSES = ['planned', 'testing', 'completed', 'scaling', 'canceled'];
-const STATUS_RU = { planned: 'Запланирована', testing: 'Тестируется', completed: 'Завершена', scaling: 'Масштабируется', canceled: 'Отменена' };
-const hOut = h => h && ({ ...h, tags: J(h.tags, []), ice: Math.round(((h.impact || 0) * (h.confidence || 0) * (h.ease || 0)) ** (1 / 3) * 10) / 10 });
-function clean(body) {
-  const o = {};
-  for (const f of H_FIELDS) if (f in body) {
-    let v = body[f];
-    if (f === 'tags') v = JSON.stringify(Array.isArray(v) ? v : []);
-    else if (['impact', 'confidence', 'ease'].includes(f)) v = Math.max(1, Math.min(10, parseInt(v) || 5));
-    else if (['baseline', 'target', 'target_pct', 'budget', 'before_days', 'after_days', 'dataset_id'].includes(f)) v = v === '' || v == null || isNaN(+v) ? null : +v;
-    else if (typeof v === 'string') v = v.trim() || null;
-    if (f === 'status' && !STATUSES.includes(v)) continue;
-    o[f] = v;
-  }
-  return o;
-}
+const hOut = hypothesisOut;
+const clean = body => cleanHypothesis(body);
 const logEvent = (uid, hid, type, text) => db.prepare('INSERT INTO events (user_id,hypothesis_id,type,text) VALUES (?,?,?,?)').run(uid, hid, type, text);
 
 app.get('/api/hypotheses', auth, (req, res) => {
@@ -165,7 +149,7 @@ app.get('/api/hypotheses/:id/analysis', auth, wrap((req, res) => {
 }));
 
 // ── datasets ────────────────────────────────────────────────────────────────
-const dOut = d => d && ({ ...d, metrics: J(d.metrics, []), skus: J(d.skus, []), mapping: J(d.mapping, []), warnings: J(d.warnings, []) });
+const dOut = datasetOut;
 app.get('/api/datasets', auth, (req, res) => {
   const rows = db.prepare(`SELECT d.*, (SELECT COUNT(*) FROM hypotheses h WHERE h.dataset_id=d.id) AS hypotheses_count FROM datasets d WHERE user_id=? ORDER BY created_at DESC, id DESC`).all(req.user.id);
   res.json(rows.map(dOut));
@@ -200,28 +184,6 @@ app.get('/api/datasets/:id/baseline', auth, (req, res) => {
 const pending = new Map();
 setInterval(() => { const now = Date.now(); for (const [k, v] of pending) if (now - v.ts > 30 * 60e3) pending.delete(k); }, 60e3).unref();
 
-function buildPreview(entry, sheetName, customMapping) {
-  const sheet = previewPayload(entry.sheets, sheetName);
-  if (!sheet || !sheet.best) return { error: 'Не удалось найти таблицу с датами и метриками. Проверьте, что в файле есть колонка с датой (или даты в заголовках столбцов) и числовые показатели.', sheets: entry.sheets.map(s => ({ name: s.name, ok: !!s.best })) };
-  const analysis = customMapping ? { ...sheet.best, mapping: customMapping } : sheet.best;
-  if (analysis.layout === 'long' && !analysis.mapping.some(m => m.role === 'date')) return { error: 'Не выбрана колонка с датой' };
-  const ex = extract(sheet, analysis);
-  const hdr = analysis.headerRow;
-  const sample = sheet.rows.slice(hdr, hdr + 9).map(r => (r || []).slice(0, 40).map(c => c instanceof Date ? parseDate(c)?.date : c));
-  return {
-    sheet: sheet.name,
-    sheets: entry.sheets.map(s => ({ name: s.name, ok: !!s.best, rows: s.rows.length })),
-    layout: analysis.layout, headerRow: hdr, sample,
-    mapping: analysis.mapping.map(m => {
-      let ex = analysis.layout === 'long' ? sheet.rows[hdr + 1]?.[m.col] : sheet.rows[m.row]?.[analysis.dateCols[0]];
-      if (ex instanceof Date) ex = parseDate(ex)?.date;
-      return { ...m, example: ex == null ? '' : String(ex).slice(0, 24) };
-    }),
-    summary: { dateFrom: ex.dateFrom, dateTo: ex.dateTo, days: ex.days, records: ex.records.length, metrics: ex.metrics, derived: ex.derived, skus: ex.skus.slice(0, 200), gran: ex.gran, warnings: ex.warnings },
-    series: dailySeries(ex.records, null).map(d => ({ date: d.date, orders: d.orders, revenue: d.revenue ?? d.order_sum, views: d.views })),
-  };
-}
-
 app.post('/api/datasets/preview', auth, upload.single('file'), wrap((req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Файл не получен' });
   if (!/\.(xlsx|xls|xlsm|csv)$/i.test(req.file.originalname)) return res.status(400).json({ error: 'Поддерживаются файлы .xlsx, .xls, .xlsm, .csv' });
@@ -241,11 +203,9 @@ app.post('/api/datasets/preview/:token', auth, wrap((req, res) => {
 app.post('/api/datasets/commit/:token', auth, wrap((req, res) => {
   const entry = pending.get(req.params.token);
   if (!entry || entry.uid !== req.user.id) return res.status(410).json({ error: 'Сессия загрузки истекла, загрузите файл заново' });
-  const sheet = previewPayload(entry.sheets, req.body.sheet);
-  if (!sheet?.best) return res.status(400).json({ error: 'Лист не содержит распознанной таблицы' });
-  const analysis = req.body.mapping ? { ...sheet.best, mapping: req.body.mapping } : sheet.best;
-  const ex = extract(sheet, analysis);
-  if (!ex.records.length || !ex.metrics.length) return res.status(400).json({ error: 'Не найдено ни одной строки с датой и метриками' });
+  const prep = prepareCommit(entry, req.body.sheet, req.body.mapping?.map(({ example, ...m }) => m));
+  if (prep.error) return res.status(400).json({ error: prep.error });
+  const { sheet, analysis, ex } = prep;
   const id = saveDataset(req.user.id, { name: req.body.name?.trim() || entry.filename.replace(/\.\w+$/, ''), filename: entry.filename, marketplace: req.body.marketplace || null, sheet: sheet.name, analysis, ex });
   pending.delete(req.params.token);
   res.status(201).json(dOut(db.prepare('SELECT * FROM datasets WHERE id=?').get(id)));
@@ -261,19 +221,10 @@ app.get('/api/samples/:file', (req, res) => {
 // ── stats ───────────────────────────────────────────────────────────────────
 app.get('/api/stats', auth, (req, res) => {
   const hs = db.prepare('SELECT * FROM hypotheses WHERE user_id=?').all(req.user.id);
-  const byStatus = Object.fromEntries(STATUSES.map(s => [s, hs.filter(h => h.status === s).length]));
-  const byStage = {}; hs.forEach(h => { byStage[h.stage || 'other'] = (byStage[h.stage || 'other'] || 0) + 1; });
   const events = db.prepare(`SELECT e.*, h.title FROM events e LEFT JOIN hypotheses h ON h.id=e.hypothesis_id WHERE e.user_id=? ORDER BY e.created_at DESC, e.id DESC LIMIT 12`).all(req.user.id);
-  const done = hs.filter(h => ['completed', 'scaling'].includes(h.status)).length;
+  const allEvents = db.prepare('SELECT type, created_at FROM events WHERE user_id=?').all(req.user.id);
   const datasets = db.prepare('SELECT COUNT(*) c FROM datasets WHERE user_id=?').get(req.user.id).c;
-  // weekly velocity (created per week, last 10 weeks)
-  const weeks = [];
-  for (let i = 9; i >= 0; i--) {
-    const to = new Date(Date.now() - i * 7 * 864e5), from = new Date(to.getTime() - 7 * 864e5);
-    const inRange = s => s && new Date(s.replace(' ', 'T') + 'Z') > from && new Date(s.replace(' ', 'T') + 'Z') <= to;
-    weeks.push({ week: to.toISOString().slice(5, 10), created: hs.filter(h => inRange(h.created_at)).length, finished: db.prepare(`SELECT COUNT(*) c FROM events WHERE user_id=? AND type='status' AND created_at>? AND created_at<=?`).get(req.user.id, from.toISOString().replace('T', ' ').slice(0, 19), to.toISOString().replace('T', ' ').slice(0, 19)).c });
-  }
-  res.json({ total: hs.length, byStatus, byStage, events, done, datasets, weeks, successRate: done ? Math.round(hs.filter(h => h.status === 'scaling').length / done * 100) : 0 });
+  res.json(computeStats(hs, events, allEvents, datasets));
 });
 
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));

@@ -5,6 +5,7 @@ import { useDatasets, useDeleteDataset, useUpdateDataset } from '../lib/hooks';
 import { METRIC_MAP, fmtDate, fmtRelative, plural, MARKETPLACES } from '../lib/constants';
 import { Button, Confirm, EmptyState, IconButton, Menu, MenuItem, Modal, MpBadge, PageHeader, Skeleton, Field, Select } from '../components/ui';
 import UploadWizard from '../components/UploadWizard';
+import SampleLink from '../components/SampleLink';
 
 export default function Datasets() {
   const { data, isLoading } = useDatasets();
@@ -18,9 +19,9 @@ export default function Datasets() {
     <div>
       <PageHeader title="Данные и анализ" subtitle="Ретроспективные выгрузки для интерпретации результатов экспериментов"
         actions={<><Menu trigger={<Button variant="secondary" icon={Download}>Примеры</Button>}>
-          <a href="/api/samples/wb_voronka_po_dnyam.xlsx"><MenuItem icon={FileSpreadsheet}>WB · Воронка по дням</MenuItem></a>
-          <a href="/api/samples/ozon_analitika_wide.xlsx"><MenuItem icon={FileSpreadsheet}>Ozon · даты в столбцах</MenuItem></a>
-          <a href="/api/samples/shablon_hypolab.xlsx"><MenuItem icon={FileSpreadsheet}>Пустой шаблон</MenuItem></a>
+          <SampleLink file="wb_voronka_po_dnyam.xlsx"><MenuItem icon={FileSpreadsheet}>WB · Воронка по дням</MenuItem></SampleLink>
+          <SampleLink file="ozon_analitika_wide.xlsx"><MenuItem icon={FileSpreadsheet}>Ozon · даты в столбцах</MenuItem></SampleLink>
+          <SampleLink file="shablon_hypolab.xlsx"><MenuItem icon={FileSpreadsheet}>Пустой шаблон</MenuItem></SampleLink>
         </Menu><Button icon={Upload} onClick={() => setUpload(true)}>Загрузить Excel</Button></>} />
 
       {isLoading ? (

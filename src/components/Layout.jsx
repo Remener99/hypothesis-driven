@@ -4,6 +4,7 @@ import { LayoutDashboard, Sparkles, KanbanSquare, Database, Settings, LogOut, Me
 import { useAuth } from '../lib/auth';
 import { useHypotheses } from '../lib/hooks';
 import { cn, Menu, MenuItem } from './ui';
+import { IS_STATIC } from '../lib/api';
 
 export function Logo({ size = 32, withText }) {
   const gid = 'lg' + useId().replace(/:/g, '');
@@ -58,6 +59,11 @@ function Sidebar({ onNavigate }) {
       </button>
       <Nav onNavigate={onNavigate} />
       <div className="mt-auto space-y-3">
+        {IS_STATIC && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900">
+            <b className="font-semibold">Демо-версия.</b> Все данные хранятся только в этом браузере и никуда не отправляются.
+          </div>
+        )}
         <div className="rounded-xl border border-brand-100 bg-gradient-to-br from-brand-50 to-white p-3">
           <div className="flex items-center gap-2 text-[13px] font-semibold text-brand-800"><BookOpen className="h-4 w-4" />Цикл HADI</div>
           <p className="mt-1 text-xs leading-relaxed text-slate-600"><b>H</b>ypothesis → <b>A</b>ction → <b>D</b>ata → <b>I</b>nsights. Проверяйте 2–3 гипотезы в неделю.</p>
